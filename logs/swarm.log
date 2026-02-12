@@ -772,3 +772,7 @@
 2026-02-12 16:04:49 [INFO] ANALYST: Successfully fetched 5532 characters
 2026-02-12 16:04:49 [INFO] ANALYST: Deep Search: Checking https://lodochairmassage.com/On-Site-Corporate-Yoga-Denver-Colorado/about for email...
 2026-02-12 16:04:49 [INFO] ANALYST: Fetching site text for: https://lodochairmassage.com/On-Site-Corporate-Yoga-Denver-Colorado/about
+2026-02-12 16:06:43 [INFO] SNIPER: Sniper Agent starting...
+2026-02-12 16:06:43 [INFO] SNIPER: Found 1 audits ready to send.
+2026-02-12 16:06:43 [INFO] SNIPER: Attempting Hunter enrichment for www.meyerroofinginc.com
+2026-02-12 16:06:43 [INFO] SNIPER: Querying Hunter.io for domain: www.meyerroofinginc.com
