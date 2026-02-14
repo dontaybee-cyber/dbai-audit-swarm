@@ -198,7 +198,7 @@ def main():
     st.markdown("---")
 
     # --- Tabs Layout ---
-    tab1, tab2, tab3 = st.tabs(["🚀 Launchpad", "📊 Data & Logs", "⚙️ Config"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🚀 Launchpad", "📲 Manual DMs", "📊 Data & Logs", "⚙️ Config"])
 
     # --- TAB 1: LAUNCHPAD ---
     with tab1:
@@ -220,8 +220,55 @@ def main():
                 else:
                     st.warning("Please enter both Niche and Location.")
 
-    # --- TAB 2: DATA & LOGS ---
+    # --- TAB 2: MANUAL DMs ---
     with tab2:
+        st.subheader("Manual Attack CRM")
+        
+        audits_df = load_csv("audits_to_send.csv")
+        if audits_df.empty:
+            st.info("No leads available yet. Run the Swarm first!")
+        else:
+            # Filter for manual leads
+            if "Status" in audits_df.columns:
+                dm_leads = audits_df[audits_df["Status"].isin(["Requires DM", "Use Form"])]
+                
+                if dm_leads.empty:
+                    st.success("Inbox Zero! No manual follow-ups required right now.")
+                else:
+                    st.markdown(f"**{len(dm_leads)} Targets Identified**")
+                    
+                    for idx, row in dm_leads.iterrows():
+                        with st.container(border=True):
+                            # Header
+                            url = str(row.get("URL", "#"))
+                            st.markdown(f"### 🔗 [{url}]({url})")
+                            
+                            # Pain Point
+                            pain_point = str(row.get("Pain Point", "No analysis available."))
+                            st.info("**AI Intel (Copy to Clipboard):**")
+                            st.code(pain_point, language="text")
+                            
+                            # Targets (Links)
+                            st.markdown("**Engagement Targets:**")
+                            
+                            links = []
+                            if pd.notna(row.get('Instagram')): links.append(f"[📷 Instagram]({row['Instagram']})")
+                            if pd.notna(row.get('Facebook')): links.append(f"[📘 Facebook]({row['Facebook']})")
+                            if pd.notna(row.get('Twitter')): links.append(f"[🐦 Twitter]({row['Twitter']})")
+                            if pd.notna(row.get('LinkedIn')): links.append(f"[💼 LinkedIn]({row['LinkedIn']})")
+                            if pd.notna(row.get('Contact Page')): links.append(f"[📝 Contact Form]({row['Contact Page']})")
+                            
+                            if links:
+                                cols = st.columns(len(links))
+                                for i, link in enumerate(links):
+                                    cols[i].markdown(link)
+                            else:
+                                st.caption("No direct contact links found.")
+            else:
+                st.warning("Status column missing in CSV.")
+
+    # --- TAB 3: DATA & LOGS ---
+    with tab3:
         # Task 4: Clean up the Data & Logs
         st.subheader("Mission Data")
         
@@ -254,8 +301,8 @@ def main():
             else:
                 st.warning("No logs found.")
 
-    # --- TAB 3: CONFIG ---
-    with tab3:
+    # --- TAB 4: CONFIG ---
+    with tab4:
         st.subheader("System Configuration")
         
         with st.form("config_form"):
