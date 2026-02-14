@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 import ui_manager as ui
+import swarm_config as config
 
 # Import Agents
 import scout_agent
@@ -14,7 +15,7 @@ load_dotenv()
 
 # --- Page Config ---
 st.set_page_config(
-    page_title="DBAI Audit Swarm",
+    page_title=config.APP_NAME,
     page_icon="🚀",
     layout="wide"
 )
@@ -33,9 +34,9 @@ def get_config(key, default=""):
 
 def render_header():
     st.markdown("""
-    <div style="background-color:#0F172A;padding:15px;border-bottom: 3px solid #38BDF8;border-radius: 5px;margin-bottom: 20px;">
-        <h1 style="color:#F8FAFC; margin:0; font-size: 24px;">🚀 DBAI Audit Swarm</h1>
-        <p style="color:#94A3B8; margin:0; font-size: 14px;">Automated Sales Command Center</p>
+    <div style="background-color:{config.BACKGROUND_COLOR};padding:15px;border-bottom: 3px solid {config.PRIMARY_COLOR};border-radius: 5px;margin-bottom: 20px;">
+        <h1 style="color:{config.TEXT_COLOR}; margin:0; font-size: 24px;">🚀 {config.APP_NAME}</h1>
+        <p style="color:{config.TEXT_COLOR}; margin:0; font-size: 14px; opacity: 0.8;">{config.TAGLINE}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -110,6 +111,10 @@ def run_full_sequence(niche, location):
 
 def main():
     render_header()
+
+    # --- Sidebar Footer ---
+    st.sidebar.markdown("---")
+    st.sidebar.caption(f"Powered by {config.APP_NAME} v{config.APP_VERSION}")
 
     # --- Top Metrics ---
     leads_df = load_csv("leads_queue.csv")
@@ -200,6 +205,9 @@ def main():
                 st.markdown("#### 📧 Email Credentials")
                 email_user = st.text_input("EMAIL_USER", value=get_config("EMAIL_USER"))
                 email_pass = st.text_input("EMAIL_PASS", value=get_config("EMAIL_PASS"), type="password")
+
+            st.markdown("#### 🔑 License")
+            license_key = st.text_input("License Key", value=get_config("LICENSE_KEY"), type="password")
             
             if st.form_submit_button("Save Configuration"):
                 if not hasattr(st, "secrets"):
@@ -207,6 +215,7 @@ def main():
                     save_env("SERP_API_KEY", serp_key)
                     save_env("EMAIL_USER", email_user)
                     save_env("EMAIL_PASS", email_pass)
+                    save_env("LICENSE_KEY", license_key)
                     st.success("Configuration saved to .env!")
                 else:
                     st.warning("Cannot write to .env in Cloud mode. Please set secrets in Streamlit Cloud dashboard.")

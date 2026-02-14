@@ -2,6 +2,7 @@ from datetime import datetime
 import logging
 import os
 import sys
+import swarm_config as config
 
 try:
     from rich.console import Console
@@ -55,7 +56,7 @@ class SwarmHeader:
             
         console.clear()
         console.print(Panel.fit(
-            "[bold magenta]DBAI AUDIT SWARM[/bold magenta]\n[dim]Automated Sales Command Center[/dim]",
+            f"[bold magenta]{config.APP_NAME}[/bold magenta]\n[dim]{config.TAGLINE}[/dim]",
             box=box.DOUBLE,
             border_style="magenta",
             padding=(1, 4),
@@ -77,9 +78,9 @@ def display_dashboard(leads_found=0, sites_analyzed=0, emails_sent=0, followups_
     table.add_column("Metric", style="white")
     table.add_column("Value", justify="right")
 
-    table.add_row("[scout]Scout Agent[/scout]", "Leads Found", f"[scout]{leads_found}[/scout]")
-    table.add_row("[analyst]Analyst Agent[/analyst]", "Sites Analyzed", f"[analyst]{sites_analyzed}[/analyst]")
-    table.add_row("[sniper]Sniper Agent[/sniper]", "Emails Sent", f"[sniper]{emails_sent}[/sniper]")
+    table.add_row(f"[scout]{config.SCOUT_NAME}[/scout]", "Leads Found", f"[scout]{leads_found}[/scout]")
+    table.add_row(f"[analyst]{config.ANALYST_NAME}[/analyst]", "Sites Analyzed", f"[analyst]{sites_analyzed}[/analyst]")
+    table.add_row(f"[sniper]{config.SNIPER_NAME}[/sniper]", "Emails Sent", f"[sniper]{emails_sent}[/sniper]")
     table.add_row("[closer]Closer Agent[/closer]", "Follow-ups Sent", f"[closer]{followups_sent}[/closer]")
 
     console.print(Panel(table, title="[bold]Live Mission Stats[/bold]", border_style="blue"))
@@ -147,13 +148,13 @@ def _log(style, icon, title, msg):
         logging.info(log_msg)
 
 def log_scout(msg):
-    _log("scout", "🔭", "SCOUT", msg)
+    _log("scout", "🔭", config.SCOUT_NAME, msg)
 
 def log_analyst(msg):
-    _log("analyst", "🧠", "ANALYST", msg)
+    _log("analyst", "🧠", config.ANALYST_NAME, msg)
 
 def log_sniper(msg):
-    _log("sniper", "🎯", "SNIPER", msg)
+    _log("sniper", "🎯", config.SNIPER_NAME, msg)
 
 def log_closer(msg):
     _log("closer", "🤝", "CLOSER", msg)

@@ -173,6 +173,18 @@ def main():
     
     ui.log_sniper(f"Found {len(pending_audits)} audits ready to send.")
     
+    # Task 1: Initialize duplicate tracking
+    emailed_this_session = set()
+    
+    # Task 1: Load historical sent emails to prevent duplicates
+    sent_history = set()
+    if "Status" in audits_df.columns and "Email" in audits_df.columns:
+        sent_rows = audits_df[audits_df["Status"] == "Sent"]
+        for _, row in sent_rows.iterrows():
+            email = str(row.get("Email", "")).strip().lower()
+            if email and email != "nan":
+                sent_history.add(email)
+
     sent_count = 0
     
     # Use UI track for progress bar
@@ -202,11 +214,21 @@ def main():
                     ui.log_warning(f"No contact email found for {domain}. Skipping {url}.")
                     continue
             
+            # Task 1: Duplicate Checks
+            current_email_lower = str(recipient_email).strip().lower()
+            if current_email_lower in emailed_this_session:
+                ui.log_warning(f"Skipping {recipient_email} - Already emailed this session.")
+                continue
+            if current_email_lower in sent_history:
+                ui.log_warning(f"Skipping {recipient_email} - Already marked as Sent in history.")
+                continue
+
             # Send the sniper email
             if send_sniper_email(recipient_email, url, pain_point):
                 audits_df.at[idx, "Status"] = "Sent"
                 audits_df.at[idx, "Sent Date"] = datetime.now().strftime("%Y-%m-%d")
                 sent_count += 1
+                emailed_this_session.add(current_email_lower)
                 
                 # Safety measure: avoid spam filters
                 # Don't send more than 5 emails per hour
