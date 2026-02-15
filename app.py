@@ -83,6 +83,32 @@ def inject_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+def render_login():
+    """Renders the login screen."""
+    st.markdown(f"""
+    <div style="text-align: center; padding: 3rem 0 2rem 0;">
+        <h1 style="color:{config.TEXT_COLOR}; margin:0; font-size: 3rem; font-weight: 800; letter-spacing: -0.025em;">🚀 {config.APP_NAME}</h1>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.container(border=True):
+        st.markdown("<h2 style='text-align: center; color: #4B0082;'>DBAI SaleSwarm Access</h2>", unsafe_allow_html=True)
+        client_key = st.text_input("Enter License Key", type="password", key="login_key")
+        
+        if st.button("Login", use_container_width=True, type="primary"):
+            # Check against Streamlit secrets
+            valid_keys = st.secrets.get("CLIENT_KEYS", [])
+            master_key = os.getenv("MASTER_KEY")
+
+            if client_key in valid_keys or (master_key and client_key == master_key):
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Invalid License Key. Access Denied.")
+
 # --- Helper Functions ---
 def get_config(key, default=""):
     """Get configuration from st.secrets (Cloud) or os.getenv (Local)."""
@@ -175,6 +201,11 @@ def run_full_sequence(niche, location):
 
 def main():
     inject_custom_css()
+    
+    if not st.session_state.authenticated:
+        render_login()
+        st.stop()
+
     render_header()
 
     # --- Sidebar Footer ---
@@ -360,6 +391,8 @@ def main():
                     st.success("Configuration saved to .env!")
                 else:
                     st.warning("Cannot write to .env in Cloud mode. Please set secrets in Streamlit Cloud dashboard.")
-
-if __name__ == "__main__":
-    main()
+        
+        st.divider()
+        if st.button("Log Out", type="secondary"):
+            st.session_state.authenticated = False
+            st.rerun()
