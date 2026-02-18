@@ -16,7 +16,7 @@ load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 try:
-    import google.generativeai as genai
+    import google.genai as genai
     genai_available = True
     try:
         genai.configure(api_key=API_KEY)
@@ -84,18 +84,22 @@ def fetch_site_text(url: str, timeout: int = 15, retries: int = 1) -> Tuple[Opti
                 return None, socials
 
 def analyze_with_gemini(site_dna: str) -> Optional[str]:
-    prompt = f"""
-You are a high-end AI Automation Consultant. Analyze this local business website text.
-Find ONE specific inefficiency related to lead capture or customer service.
-Focus on things like: No instant web-chat, manual booking forms, no after-hours lead capture, or buried contact info.
-Write exactly ONE conversational sentence that I can drop into a cold email. 
-Format: Point out the specific flaw, and hint at the revenue they are losing.
-Do NOT use buzzwords like 'synergy', 'optimize', or 'paradigm'. Speak like a normal human.
-Example Good Output: "I noticed you don't have an automated web-chat on your site, which means any traffic landing there after 5 PM is likely bouncing to a competitor."
-Example Bad Output: "Your operational inefficiency regarding lead generation can be optimized with AI."
-Website Text:
-{site_dna}
-"""
+    system_instruction = (
+        "You are a top-tier AI Automation Consultant analyzing a local business's website from the provided text below."
+        "Your task is to identify the most significant 'Revenue Leak'—a clear inefficiency where the business is losing money due to a lack of automation."
+        "Scan for these specific weaknesses:"
+        "- Absence of AI automation (e.g., no chatbots for instant customer service, no automated booking or quoting systems)."
+        "- Slow site performance or poor mobile optimization (inferred from text cues like 'copyright 2015' or lack of modern framework mentions)."
+        "- Underutilized lead capture (e.g., only a contact form, no immediate callback widgets, no lead magnets)."
+        "Based on the single most critical weakness you find, perform two actions:"
+        "1. Calculate a realistic 'Projected ROI' figure if they were to automate this gap. Frame it as an annual projection."
+        "   - Example ROI Calculation: If a business gets 100 visitors/day and a chatbot could convert 2% of them into leads valued at $50 each, the projected ROI would be (100 * 0.02 * $50 * 365) = $36,500/year."
+        "2. Synthesize your finding and the ROI into a single, hard-hitting sentence for a cold email."
+        "   - Format: '[Identified Weakness], potentially losing you an estimated [Projected ROI] annually.'"
+        "   - Example Output: 'I noticed your site lacks an automated chat system, potentially losing you an estimated $36,500 annually from missed after-hours leads.'"
+        "CRUCIAL: Output only this single sentence. Nothing else."
+    )
+    prompt = f"{system_instruction}\n\nWebsite Text:\n{site_dna}"
     try:
         if not genai_available:
             ui.log_warning("GenAI not available, skipping Gemini analysis.")
@@ -121,15 +125,15 @@ def heuristic_analysis(site_dna: str) -> str:
     s = site_dna.lower()
     if "contact" not in s and "contact" not in s[:200]:
         ui.log_analyst("Heuristic triggered: No visible lead-capture form.")
-        return "No visible lead-capture form — visitors can't convert without instant capture."
+        return "Your website has no visible lead-capture form on the homepage, potentially losing you an estimated $15,000 annually from missed conversion opportunities."
     if "book" in s and ("online" not in s and "book now" not in s):
         ui.log_analyst("Heuristic triggered: Manual booking process.")
-        return "Manual booking process — customers must call instead of booking instantly."
+        return "Your site appears to use a manual booking process, potentially losing you an estimated $25,000 annually from customers who expect instant online scheduling."
     if "support" in s and ("chat" not in s and "help" in s):
         ui.log_analyst("Heuristic triggered: Outdated support flow.")
-        return "Outdated support flow — no instant AI chat to resolve common issues."
+        return "Your support page lacks an instant AI chat, potentially losing you an estimated $20,000 annually from unresolved customer questions."
     ui.log_analyst("Heuristic triggered: Default fallback.")
-    return "Website lacks clear instant lead-capture — missed opportunities for immediate conversion."
+    return "Your website lacks a clear, instant lead-capture mechanism, potentially losing you an estimated $18,000 annually from missed opportunities."
 
 
 def extract_email_from_text(text: str) -> Optional[str]:
@@ -216,7 +220,7 @@ def main(client_key: str):
 
             out_rows.append({
                 "URL": url, 
-                "Pain Point": pain, 
+                "Pain_Point_Summary": pain, 
                 "Status": status,
                 "Email": extracted_email,
                 "Facebook": socials.get("Facebook"),
@@ -230,7 +234,7 @@ def main(client_key: str):
         except Exception as e:
             ui.log_error(f"Unexpected error processing row {idx}: {e}")
 
-    out_df = pd.DataFrame(out_rows, columns=["URL", "Pain Point", "Status", "Email", "Facebook", "LinkedIn", "Instagram", "Twitter", "Contact Page"])
+    out_df = pd.DataFrame(out_rows, columns=["URL", "Pain_Point_Summary", "Status", "Email", "Facebook", "LinkedIn", "Instagram", "Twitter", "Contact Page"])
     if not out_df.empty:
         if os.path.exists(audits_file):
             try:

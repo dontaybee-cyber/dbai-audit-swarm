@@ -225,7 +225,8 @@ def main():
     col1, col2, col3, col4, col5 = st.columns(5)
 
     leads_count = len(leads_df) if not leads_df.empty else 0
-    analyzed_count = len(audits_df) if not audits_df.empty else 0
+    # Task 3: Update metric to count generated audits
+    audits_generated_count = audits_df["Audit Attached"].sum() if not audits_df.empty and "Audit Attached" in audits_df.columns else 0
     sent_count = len(audits_df[audits_df["Status"] == "Sent"]) if not audits_df.empty and "Status" in audits_df.columns else 0
     replies_count = len(audits_df[audits_df["Status"] == "Replied"]) if not audits_df.empty and "Status" in audits_df.columns else 0
     follow_up_count = len(audits_df[audits_df["Status"] == "Followed Up"]) if not audits_df.empty and "Status" in audits_df.columns else 0
@@ -233,7 +234,7 @@ def main():
     with col1:
         st.metric("Leads Found", leads_count)
     with col2:
-        st.metric("Sites Analyzed", analyzed_count)
+        st.metric("Audits Generated", audits_generated_count) # Updated Metric
     with col3:
         st.metric("Emails Sent", sent_count)
     with col4:
@@ -248,7 +249,6 @@ def main():
 
     # --- TAB 1: LAUNCHPAD ---
     with tab1:
-        # Task 3: The "Launchpad" Redesign
         st.subheader("Mission Control")
         with st.container(border=True):
             c1, c2 = st.columns(2)
@@ -285,7 +285,6 @@ def main():
         if audits_df_dm.empty:
             st.info("No leads available yet. Run the Swarm first!")
         else:
-            # Filter for manual leads
             if "Status" in audits_df_dm.columns:
                 dm_leads = audits_df_dm[audits_df_dm["Status"].isin(["Requires DM", "Use Form"])]
                 
@@ -296,16 +295,13 @@ def main():
                     
                     for idx, row in dm_leads.iterrows():
                         with st.container(border=True):
-                            # Header
                             url = str(row.get("URL", "#"))
                             st.markdown(f"### 🔗 [{url}]({url})")
                             
-                            # Pain Point
-                            pain_point = str(row.get("Pain Point", "No analysis available."))
+                            pain_point_summary = str(row.get("Pain_Point_Summary", "No analysis available."))
                             st.info("**AI Intel (Copy to Clipboard):**")
-                            st.code(pain_point, language="text")
+                            st.code(pain_point_summary, language="text")
                             
-                            # Targets (Links)
                             st.markdown("**Engagement Targets:**")
                             
                             links = []
@@ -326,7 +322,6 @@ def main():
 
     # --- TAB 3: DATA & LOGS ---
     with tab3:
-        # Task 4: Clean up the Data & Logs
         st.subheader("Mission Data")
         
         d1, d2 = st.columns(2)
@@ -343,6 +338,9 @@ def main():
             st.markdown("#### 🎯 Outreach Status")
             audits_df_display = load_csv("audits_to_send.csv", st.session_state.client_key)
             if not audits_df_display.empty:
+                # Task 3: Add visual indicator for PDF attachment
+                if "Audit Attached" in audits_df_display.columns:
+                     audits_df_display["Audit Attached"] = audits_df_display["Audit Attached"].apply(lambda x: "📄" if x else "")
                 st.dataframe(audits_df_display, use_container_width=True, height=400)
             else:
                 st.info("No audits generated yet.")
@@ -370,6 +368,7 @@ def main():
                     st.code("".join(lines[-50:]), language="log")
             else:
                 st.warning("No logs found.")
+
 
     # --- TAB 4: CONFIG ---
     with tab4:

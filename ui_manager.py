@@ -136,7 +136,14 @@ def _log(style, icon, title, msg):
         # Continue to file logging below...
 
     timestamp = datetime.now().strftime("%H:%M:%S")
-    console.print(f"[dim]{timestamp}[/dim] [{style}]{icon} {title}:[/{style}] {msg}")
+    
+    # Disable emojis in non-interactive terminals to prevent UnicodeEncodeError
+    if console.is_interactive:
+        log_message = f"[dim]{timestamp}[/dim] [{style}]{icon} {title}:[/{style}] {msg}"
+    else:
+        log_message = f"[dim]{timestamp}[/dim] [{style}]{title}:[/{style}] {msg}"
+        
+    console.print(log_message.encode('utf-8').decode(sys.stdout.encoding, errors='ignore'))
     
     # Write to swarm.log
     log_msg = f"{title}: {msg}"
@@ -160,13 +167,25 @@ def log_closer(msg):
     _log("closer", "🤝", "CLOSER", msg)
 
 def log_info(msg):
-    console.print(f"[info]ℹ️ {msg}[/info]")
+    if console.is_interactive:
+        console.print(f"[info]ℹ️ {msg}[/info]")
+    else:
+        console.print(f"[info] {msg}[/info]")
 
 def log_success(msg):
-    console.print(f"[success]✅ {msg}[/success]")
+    if console.is_interactive:
+        console.print(f"[success]✅ {msg}[/success]")
+    else:
+        console.print(f"[success] {msg}[/success]")
 
 def log_warning(msg):
-    console.print(f"[warning]⚠️ {msg}[/warning]")
+    if console.is_interactive:
+        console.print(f"[warning]⚠️ {msg}[/warning]")
+    else:
+        console.print(f"[warning] {msg}[/warning]")
 
 def log_error(msg):
-    console.print(f"[error]❌ {msg}[/error]")
+    if console.is_interactive:
+        console.print(f"[error]❌ {msg}[/error]")
+    else:
+        console.print(f"[error] {msg}[/error]")

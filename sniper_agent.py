@@ -6,6 +6,7 @@ import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from typing import Optional
 
 import pandas as pd
@@ -16,8 +17,9 @@ load_dotenv()
 
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
-SENDER_NAME = os.getenv("SENDER_NAME", "Scout Agent Team")
-DBAI_AUDIT_LINK = "https://dbai-audit-suite.vercel.app/"
+SENDER_NAME = os.getenv("SENDER_NAME", "Dontay Beemon")
+DBAI_LANDING_PAGE = "https://digitaldontaybeemon.dashnexpages.net/ai-automation-consultant-custom-ai-systems-workflow-audits/"
+DBAI_PHONE = "(720) 316-8360"
 HUNTER_API_KEY = os.getenv("HUNTER_API_KEY")
 
 """
@@ -41,53 +43,66 @@ NOTE: Regular Gmail passwords DO NOT work with this script.
 """
 
 
-def send_sniper_email(recipient_email: str, url: str, pain_point: str) -> bool:
+def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str) -> Tuple[bool, bool]:
     """
-    Send a personalized 'sniper' email with pattern interrupt subject line.
+    Send a personalized 'sniper' email with a PDF attachment.
     
     Args:
         recipient_email: Target email address
         url: Website URL being audited
-        pain_point: The identified business pain point
+        pain_point_summary: The identified business pain point and ROI projection.
     
     Returns:
-        True if email sent successfully, False otherwise
+        A tuple (email_sent_successfully, pdf_attached_successfully)
     """
     
     if not EMAIL_USER or not EMAIL_PASS:
         ui.log_error("EMAIL_USER or EMAIL_PASS not configured in .env file")
-        return False
+        return False, False
     
-    # Pattern Interrupt Subject Line
-    subject = f"Question about {url.replace('https://', '').replace('http://', '').split('/')[0]}'s lead flow"
+    subject = f"A specific idea for {url.replace('https://', '').replace('http://', '').split('/')[0]}"
     
-    # Email Body - Helpful, Not Salesy
-    body = f"""Hi there,
+    # New punchy email body
+    body = f"""Hi,
 
-I was reviewing {url} and noticed something interesting:
+My firm, Dontay Beemon Automated Innovations (DBAI), specializes in one thing: fixing revenue leaks.
 
-{pain_point}
+I was reviewing your site and noticed that {pain_point_summary}.
 
-This is costing you real money every single day. I put together a full AI roadmap to fix this and completely automate your lead capture process.
+I've attached a strategic briefing (sample_audit.pdf) that outlines how we typically solve this for our clients using AI automation. It's a direct look into the strategies we'd deploy for you.
 
-Check it out here: {DBAI_AUDIT_LINK}
+If you're serious about capturing that lost revenue, my direct line is {DBAI_PHONE}.
 
-You'll see exactly how to eliminate this leak and scale your business without adding manual overhead.
+Best,
 
-Looking forward to connecting,
 {SENDER_NAME}
-
-P.S. This audit is free. You'll get concrete, actionable steps to implement immediately.
+Dontay Beemon Automated Innovations
+{DBAI_LANDING_PAGE}
 """
     
+    pdf_attached = False
     try:
         # Create message
         msg = MIMEMultipart()
-        msg['From'] = EMAIL_USER
+        msg['From'] = f"{SENDER_NAME} <{EMAIL_USER}>"
         msg['To'] = recipient_email
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain'))
         
+        # Attach PDF
+        pdf_path = "sample_audit.pdf"
+        try:
+            with open(pdf_path, "rb") as attachment:
+                part = MIMEApplication(attachment.read(), _subtype="pdf")
+                part.add_header('Content-Disposition', 'attachment', filename=os.path.basename(pdf_path))
+                msg.attach(part)
+                pdf_attached = True
+                ui.log_sniper(f"Successfully attached {pdf_path}")
+        except FileNotFoundError:
+            ui.log_error(f"CRITICAL: The file {pdf_path} was not found. Email will be sent without the attachment.")
+            # Still send the email, but log the failure
+            pdf_attached = False
+
         # Connect to Gmail SMTP server
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
@@ -97,18 +112,19 @@ P.S. This audit is free. You'll get concrete, actionable steps to implement imme
         server.send_message(msg)
         server.quit()
         
-        ui.log_success(f"Email sent to {recipient_email} | URL: {url}")
-        return True
+        ui.log_success(f"Email sent to {recipient_email} | PDF Attached: {pdf_attached}")
+        return True, pdf_attached
         
     except smtplib.SMTPAuthenticationError:
         ui.log_error(f"Authentication failed. Check EMAIL_USER and EMAIL_PASS. Did you use an App Password?")
-        return False
+        return False, False
     except smtplib.SMTPException as e:
         ui.log_error(f"SMTP error sending to {recipient_email}: {e}")
-        return False
+        return False, False
     except Exception as e:
         ui.log_error(f"Failed to send email to {recipient_email}: {e}")
-        return False
+        return False, False
+
 
 
 def enrich_email_with_hunter(domain: str) -> Optional[str]:
@@ -152,7 +168,8 @@ def main(client_key: str):
     
     audits_df = pd.read_csv(audits_file, on_bad_lines='skip')
     
-    required_columns = ["Status", "URL", "Pain Point"]
+    # Updated required columns
+    required_columns = ["Status", "URL", "Pain_Point_Summary"]
     if not all(col in audits_df.columns for col in required_columns):
         ui.log_error(f"{audits_file} must contain these columns: {', '.join(required_columns)}")
         return
@@ -162,6 +179,10 @@ def main(client_key: str):
         ui.log_info("To send sniper emails, you need contact emails for each lead.")
         return
     
+    # Initialize 'Audit Attached' column if it doesn't exist
+    if "Audit Attached" not in audits_df.columns:
+        audits_df["Audit Attached"] = False
+        
     pending_audits = audits_df[audits_df["Status"].str.lower() == "analyzed"]
     
     if pending_audits.empty:
@@ -180,15 +201,17 @@ def main(client_key: str):
                 sent_history.add(email)
 
     sent_count = 0
+    audits_generated = 0
     
-    for idx, row in ui.track(pending_audits.iterrows(), total=len(pending_audits), description="[sniper]Sending Emails...[/sniper]"):
+    # Updated progress bar description
+    for idx, row in ui.track(pending_audits.iterrows(), total=len(pending_audits), description="[sniper]Generating Audits & Sending Emails...[/sniper]"):
         try:
             url = row.get("URL")
             if pd.isna(url) or not isinstance(url, str):
                 ui.log_warning(f"Skipping row {idx}: Invalid URL")
                 continue
 
-            pain_point = row.get("Pain Point")
+            pain_point_summary = row.get("Pain_Point_Summary")
             recipient_email = row.get("Email")
             
             if not recipient_email or pd.isna(recipient_email):
@@ -197,13 +220,14 @@ def main(client_key: str):
                 if HUNTER_API_KEY:
                     ui.log_sniper(f"Attempting Hunter enrichment for {domain}")
                     found = enrich_email_with_hunter(domain)
-                    time.sleep(1)
+                    time.sleep(1) # Respect Hunter API rate limits
                     if found:
                         recipient_email = found
                         audits_df.at[idx, "Email"] = found
                         ui.log_success(f"Enriched email for {domain} via Hunter: {found}")
                 if not recipient_email or pd.isna(recipient_email):
                     ui.log_warning(f"No contact email found for {domain}. Skipping {url}.")
+                    audits_df.at[idx, "Status"] = "Dead End - No Email"
                     continue
             
             current_email_lower = str(recipient_email).strip().lower()
@@ -212,28 +236,39 @@ def main(client_key: str):
                 continue
             if current_email_lower in sent_history:
                 ui.log_warning(f"Skipping {recipient_email} - Already marked as Sent in history.")
+                audits_df.at[idx, "Status"] = "Skipped - Previously Sent"
                 continue
 
-            if send_sniper_email(recipient_email, url, pain_point):
+            sent, attached = send_sniper_email(recipient_email, url, pain_point_summary)
+            if sent:
                 audits_df.at[idx, "Status"] = "Sent"
                 audits_df.at[idx, "Sent Date"] = datetime.now().strftime("%Y-%m-%d")
+                audits_df.at[idx, "Audit Attached"] = attached
                 sent_count += 1
+                if attached:
+                    audits_generated += 1
                 emailed_this_session.add(current_email_lower)
                 
+                # Randomized delay to mimic human behavior
                 time.sleep(random.randint(30, 60))
             else:
                 ui.log_warning(f"Failed to send email for {url}")
+                audits_df.at[idx, "Status"] = "Send Failed"
         
         except Exception as e:
             ui.log_error(f"Unexpected error processing row {idx}: {e}")
+            audits_df.at[idx, "Status"] = "Error"
+    
+    # Save changes regardless of whether emails were sent, to update statuses
+    audits_df.to_csv(audits_file, index=False)
     
     if sent_count > 0:
-        audits_df.to_csv(audits_file, index=False)
-        ui.display_dashboard(emails_sent=sent_count)
+        ui.display_dashboard(emails_sent=sent_count, audits_generated=audits_generated)
         ui.log_success(f"Successfully sent {sent_count} sniper emails!")
-        ui.log_success(f"Updated {audits_file} status to 'Sent'")
+        ui.log_success(f"Generated and attached {audits_generated} audits.")
+        ui.log_success(f"Updated {audits_file} with new statuses.")
     else:
-        ui.log_info("No emails sent. Check configuration and contact data.")
+        ui.log_info("No new emails sent in this session. Check logs for details.")
 
 if __name__ == "__main__":
     import argparse
