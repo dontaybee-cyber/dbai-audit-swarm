@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 
 import pandas as pd
 from dotenv import load_dotenv
+import streamlit as st
 import ui_manager as ui
 import swarm_config
 
@@ -92,13 +93,19 @@ def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str, p
         A tuple (email_sent_successfully, pdf_attached_successfully)
     """
 
-    # Just-in-time credential fetch (prevents stale/empty globals)
-    email_user = os.getenv("EMAIL_USER")
-    email_pass = os.getenv("EMAIL_PASS")
+    # Fetch directly from Streamlit Cloud Secrets, fallback to .env for local
+    try:
+        email_user = st.secrets.get("EMAIL_USER", os.getenv("EMAIL_USER"))
+        email_pass = st.secrets.get("EMAIL_PASS", os.getenv("EMAIL_PASS"))
+    except Exception:
+        email_user = os.getenv("EMAIL_USER")
+        email_pass = os.getenv("EMAIL_PASS")
+
     if not email_user or not email_pass:
-        ui.log_error("CRITICAL: Email credentials missing from environment during execution.")
+        ui.log_error("CRITICAL: Email credentials missing from secure vault.")
         return False, False
-    
+
+    # Strip alias for Google Server login, but keep alias for the 'From' address
     login_email = email_user
     if '+' in email_user and '@' in email_user:
         user_part, domain = email_user.split('@')
