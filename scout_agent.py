@@ -2,6 +2,7 @@ import os
 import argparse
 import pandas as pd
 import time
+import requests
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 import ui_manager as ui
@@ -34,6 +35,54 @@ def get_known_domains(client_key: str) -> set:
             except Exception:
                 pass
     return known_domains
+
+def apollo_fallback_search(niche, location, required_lead_count, master_domain_set, blacklist):
+    apollo_key = os.getenv("APOLLO_API_KEY")
+
+    if not apollo_key:
+        ui.log_warning("No Apollo API key found. Fallback aborted.")
+        return []
+
+    payload = {
+        "api_key": apollo_key,
+        "q_organization_keyword_tags": [niche],
+        "organization_locations": [location],
+        "per_page": required_lead_count,
+    }
+
+    fallback_leads = []
+
+    try:
+        resp = requests.post(
+            "https://api.apollo.io/v1/organizations/search",
+            json=payload,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        for org in data.get("organizations", []):
+            website_url = org.get("website_url")
+            if not website_url:
+                continue
+
+            if any(bad in website_url.lower() for bad in blacklist):
+                continue
+
+            host = urlparse(website_url).netloc.lower().replace("www.", "")
+            if host and host not in master_domain_set:
+                fallback_leads.append(website_url)
+                master_domain_set.add(host)
+
+            if len(fallback_leads) >= required_lead_count:
+                break
+
+    except Exception as e:
+        ui.log_error(f"Apollo fallback encountered an exception: {e}")
+        return []
+
+    return fallback_leads
+
 
 def scout_leads(niche, location, client_key, num_results=20):
     ui.SwarmHeader.display()
@@ -88,10 +137,23 @@ def scout_leads(niche, location, client_key, num_results=20):
             search = GoogleSearch(params)
             results = search.get_dict()
 
-            # Task 1: API Error & KeyError Shielding
+            # Task 1: API Error & KeyError Shielding (+ Apollo failover)
             if "error" in results:
                 ui.log_error(f"SerpAPI Error: {results['error']}")
-                break 
+
+                leads_needed = TARGET_NEW_LEADS - len(fresh_leads)
+                if leads_needed > 0:
+                    apollo_urls = apollo_fallback_search(
+                        niche,
+                        location,
+                        leads_needed,
+                        master_domain_set,
+                        blacklist,
+                    )
+                    fresh_leads.extend([{"URL": url, "Status": "Unscanned"} for url in apollo_urls])
+                    ui.log_success(f"Apollo Fallback recovered {len(apollo_urls)} leads.")
+
+                break
 
             # Task 2: Fix the Aggressive Pagination Break
             local_results = results.get("local_results", [])
