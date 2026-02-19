@@ -39,7 +39,6 @@ def scout_leads(niche, location, client_key, num_results=20):
     ui.SwarmHeader.display()
     ui.display_mission_briefing(niche, location)
 
-    # Task 1: The Directory Blacklist
     blacklist = (
         "yelp.", "angi.", "bbb.", "houzz.", "thumbtack.", "expertise.", 
         "yellowpages.", "facebook.", "linkedin.", "instagram.", "twitter.", 
@@ -50,7 +49,6 @@ def scout_leads(niche, location, client_key, num_results=20):
     if master_domain_set:
         ui.log_info(f"Loaded {len(master_domain_set)} known domains to skip for client '{client_key}'.")
 
-    # Task 2: Advanced Search Query
     q = f'{niche} in {location} -yelp -angi -bbb -thumbtack'
     ui.log_scout(f"Starting search for: [bold white]{q}[/bold white]")
 
@@ -71,8 +69,8 @@ def scout_leads(niche, location, client_key, num_results=20):
     search_offset = 0
     
     while len(fresh_leads) < TARGET_NEW_LEADS:
-        if search_offset >= 50: # Safety breakout after 5 pages
-            ui.log_warning(f"Checked 5 pages but couldn't find {TARGET_NEW_LEADS} new leads. Proceeding with {len(fresh_leads)} found.")
+        if search_offset >= 50:
+            ui.log_warning(f"Safety breakout: Checked 5 pages. Proceeding with {len(fresh_leads)} found leads.")
             break
 
         params = {
@@ -90,10 +88,23 @@ def scout_leads(niche, location, client_key, num_results=20):
             search = GoogleSearch(params)
             results = search.get_dict()
 
-            # Task 3: Local Pack Extraction (Premium Leads)
-            if "local_results" in results:
+            # Task 1: API Error & KeyError Shielding
+            if "error" in results:
+                ui.log_error(f"SerpAPI Error: {results['error']}")
+                break 
+
+            # Task 2: Fix the Aggressive Pagination Break
+            local_results = results.get("local_results", [])
+            organic_results = results.get("organic_results", [])
+
+            if not local_results and not organic_results:
+                ui.log_warning("No more leads found on this page. Ending scrape.")
+                break
+
+            # Task 3: Safe Looping
+            if local_results:
                 ui.log_scout("Extracting from Google Local Pack...")
-                for local in results["local_results"]:
+                for local in local_results:
                     website = local.get("website")
                     if website and not any(bad in website.lower() for bad in blacklist):
                         host = urlparse(website).netloc.lower().replace('www.', '')
@@ -105,43 +116,41 @@ def scout_leads(niche, location, client_key, num_results=20):
             
             if len(fresh_leads) >= TARGET_NEW_LEADS: break
 
-            organic_results = results.get("organic_results", [])
-            if not organic_results:
-                ui.log_info("No more organic results found. Ending search.")
-                break
-
-            for result in organic_results:
-                link = result.get("link")
-                
-                # Task 4: Filter Organic Results
-                if link and not any(bad in link.lower() for bad in blacklist):
-                    host = urlparse(link).netloc.lower().replace('www.', '')
-                    if host and host not in master_domain_set:
-                        ui.log_success(f"Lead Found (Organic): {link}")
-                        fresh_leads.append({"URL": link, "Status": "Unscanned"})
-                        master_domain_set.add(host)
-                        if len(fresh_leads) >= TARGET_NEW_LEADS:
-                            break
+            if organic_results:
+                for result in organic_results:
+                    link = result.get("link")
+                    if link and not any(bad in link.lower() for bad in blacklist):
+                        host = urlparse(link).netloc.lower().replace('www.', '')
+                        if host and host not in master_domain_set:
+                            ui.log_success(f"Lead Found (Organic): {link}")
+                            fresh_leads.append({"URL": link, "Status": "Unscanned"})
+                            master_domain_set.add(host)
+                            if len(fresh_leads) >= TARGET_NEW_LEADS:
+                                break
             
             search_offset += 10
-            time.sleep(1) # Be respectful to the API
+            time.sleep(1)
 
         except Exception as e:
-            ui.log_error(f"SerpAPI failed: {e}")
+            ui.log_error(f"Scout agent encountered an exception: {e}")
             break
             
-    if fresh_leads:
-        leads_file = f"leads_queue_{client_key}.csv"
-        df = pd.DataFrame(fresh_leads)
-        
-        # Append without header if file exists
+    # Task 4: Guarantee the Baton Pass (CSV Creation)
+    leads_file = f"leads_queue_{client_key}.csv"
+    new_leads_df = pd.DataFrame(fresh_leads, columns=["URL", "Status"])
+
+    if not new_leads_df.empty:
         header = not os.path.exists(leads_file)
-        df.to_csv(leads_file, mode='a', index=False, header=header)
-        
-        ui.display_dashboard(leads_found=len(fresh_leads))
-        ui.log_success(f"{len(fresh_leads)} new leads added to {leads_file}")
+        new_leads_df.to_csv(leads_file, mode='a', index=False, header=header)
+        ui.display_dashboard(leads_found=len(new_leads_df))
+        ui.log_success(f"{len(new_leads_df)} new leads added to {leads_file}")
     else:
-        ui.log_warning("No new direct business websites found after deep search.")
+        ui.log_warning("No new direct business websites found in this session.")
+        # Still create the file if it doesn't exist, to prevent downstream errors
+        if not os.path.exists(leads_file):
+            pd.DataFrame(columns=["URL", "Status"]).to_csv(leads_file, index=False)
+            ui.log_info(f"Created empty leads file: {leads_file}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scout Agent - Lead Discovery")
