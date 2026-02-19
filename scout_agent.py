@@ -43,8 +43,13 @@ def apollo_fallback_search(niche, location, required_lead_count, master_domain_s
         ui.log_warning("No Apollo API key found. Fallback aborted.")
         return []
 
+    headers = {
+        "Cache-Control": "no-cache",
+        "Content-Type": "application/json",
+        "X-Api-Key": apollo_key,
+    }
+
     payload = {
-        "api_key": apollo_key,
         "q_organization_keyword_tags": [niche],
         "organization_locations": [location],
         "per_page": required_lead_count,
@@ -55,6 +60,7 @@ def apollo_fallback_search(niche, location, required_lead_count, master_domain_s
     try:
         resp = requests.post(
             "https://api.apollo.io/v1/organizations/search",
+            headers=headers,
             json=payload,
             timeout=30,
         )

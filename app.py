@@ -27,27 +27,21 @@ st.set_page_config(
 )
 
 # --- Task 1: Inject Custom CSS (The SaaS Polish) ---
-def inject_custom_css(is_dark):
+def inject_custom_css(is_dark=False):
     # Base styles
     font_url = "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap"
     font_family = "'Plus Jakarta Sans', sans-serif"
 
-    # Theme-specific variables
-    if is_dark:
-        bg_color = "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)"
-        container_bg = "#1E293B"
-        text_color = "#F8FAFC"
-        metric_border = "#334155"
-        card_bg = "#1E293B"
-        metric_label_color = "#94A3B8"
-    else:
-        bg_color = "linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%)"
-        container_bg = "white"
-        text_color = config.TEXT_COLOR
-        metric_border = "#E2E8F0"
-        card_bg = "white"
-        metric_label_color = "#64748B"
-        
+    # Dynamic theme variables (requested)
+    bg_color = "#0F172A" if is_dark else config.BACKGROUND_COLOR
+    text_color = "#F8FAFC" if is_dark else config.TEXT_COLOR
+    card_bg = "#1E293B" if is_dark else "white"
+
+    # Keep existing supporting variables
+    container_bg = "#1E293B" if is_dark else "white"
+    metric_border = "#334155" if is_dark else "#E2E8F0"
+    metric_label_color = "#94A3B8" if is_dark else "#64748B"
+
     st.markdown(f"""
     <style>
         @import url('{font_url}');
@@ -246,24 +240,19 @@ def run_full_sequence(niche, location, client_key):
         status.update(label="✅ Full Swarm Sequence Complete!", state="complete")
 
 def main():
-    # 1. Grab Dark Mode state BEFORE injecting CSS
     is_dark = st.session_state.get("dark_mode", False)
     inject_custom_css(is_dark)
-    
-    # 2. Security Gate (Stops execution if not logged in)
+
     if not st.session_state.authenticated:
         render_login()
         st.stop()
-        
-    # 3. Build the Sidebar (Only renders if authenticated)
+
+    # Sidebar UI
     st.sidebar.markdown("### 🏢 DBAI Enterprise")
     st.sidebar.markdown(f"**Logged in as:**<br><span style='color:{config.PRIMARY_COLOR};'>{st.session_state.client_key}</span>", unsafe_allow_html=True)
-    
-    # The missing toggle:
     st.sidebar.toggle("🌙 Dark Mode", key="dark_mode")
     st.sidebar.divider()
-    
-    # 4. Render the main dashboard header
+
     render_header()
 
     # --- Sidebar Footer ---
