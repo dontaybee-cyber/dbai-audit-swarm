@@ -238,18 +238,17 @@ def main(client_key: str):
     if not out_df.empty:
         if os.path.exists(audits_file):
             try:
-                existing_cols = pd.read_csv(audits_file, nrows=0).columns.tolist()
-                if existing_cols == list(out_df.columns):
-                    out_df.to_csv(audits_file, mode="a", index=False, header=False)
-                else:
-                    ui.log_warning(f"CSV Schema mismatch for {audits_file}. Overwriting with new format.")
-                    out_df.to_csv(audits_file, index=False)
-            except Exception:
+                # Safely merge existing data with new rows, preserving all columns
+                existing_df = pd.read_csv(audits_file)
+                combined_df = pd.concat([existing_df, out_df], ignore_index=True)
+                combined_df.to_csv(audits_file, index=False)
+            except Exception as e:
+                ui.log_warning(f"Error merging CSV: {e}. Falling back to overwrite.")
                 out_df.to_csv(audits_file, index=False)
         else:
             out_df.to_csv(audits_file, index=False)
         ui.display_dashboard(sites_analyzed=len(out_df))
-        ui.log_success(f"Wrote {len(out_df)} rows to {audits_file}")
+        ui.log_success(f"Wrote {len(out_df)} new rows to {audits_file}")
 
     if updated:
         leads_df.to_csv(leads_file, index=False)
