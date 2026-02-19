@@ -16,8 +16,6 @@ import swarm_config
 
 load_dotenv()
 
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
 SENDER_NAME = os.getenv("SENDER_NAME", "The DBAI Team")
 DBAI_LANDING_PAGE = "https://digitaldontaybeemon.dashnexpages.net/ai-automation-consultant-custom-ai-systems-workflow-audits/"
 DBAI_PHONE = "(720) 316-8360"
@@ -93,9 +91,12 @@ def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str, p
     Returns:
         A tuple (email_sent_successfully, pdf_attached_successfully)
     """
-    
-    if not EMAIL_USER or not EMAIL_PASS:
-        ui.log_error("EMAIL_USER or EMAIL_PASS not configured in .env file")
+
+    # Just-in-time credential fetch (prevents stale/empty globals)
+    email_user = os.getenv("EMAIL_USER")
+    email_pass = os.getenv("EMAIL_PASS")
+    if not email_user or not email_pass:
+        ui.log_error("CRITICAL: Email credentials missing from environment during execution.")
         return False, False
     
     subject = f"A specific idea for {url.replace('https://', '').replace('http://', '').split('/')[0]}"
@@ -107,7 +108,7 @@ def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str, p
     try:
         # Create message
         msg = MIMEMultipart()
-        msg['From'] = f"{SENDER_NAME} <{EMAIL_USER}>"
+        msg['From'] = email_user
         msg['To'] = recipient_email
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain'))
@@ -128,7 +129,7 @@ def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str, p
         # Connect to Gmail SMTP server
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASS)
+        server.login(email_user, email_pass)
         
         # Send email
         server.send_message(msg)
@@ -137,14 +138,11 @@ def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str, p
         ui.log_success(f"Email sent to {recipient_email} | PDF Attached: {pdf_attached}")
         return True, pdf_attached
         
-    except smtplib.SMTPAuthenticationError:
-        ui.log_error(f"Authentication failed. Check EMAIL_USER and EMAIL_PASS. Did you use an App Password?")
-        return False, False
-    except smtplib.SMTPException as e:
-        ui.log_error(f"SMTP error sending to {recipient_email}: {e}")
+    except smtplib.SMTPAuthenticationError as e:
+        ui.log_error(f"Google SMTP Auth Rejected: {e.smtp_code} - {e.smtp_error}")
         return False, False
     except Exception as e:
-        ui.log_error(f"Failed to send email to {recipient_email}: {e}")
+        ui.log_error(f"Email dispatch failure: {e}")
         return False, False
 
 def enrich_email_with_hunter(domain: str) -> Optional[str]:
