@@ -99,6 +99,12 @@ def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str, p
         ui.log_error("CRITICAL: Email credentials missing from environment during execution.")
         return False, False
     
+    login_email = email_user
+    if '+' in email_user and '@' in email_user:
+        user_part, domain = email_user.split('@')
+        base_user = user_part.split('+')[0]
+        login_email = f"{base_user}@{domain}"
+
     subject = f"A specific idea for {url.replace('https://', '').replace('http://', '').split('/')[0]}"
     
     # Generate the dynamic email body
@@ -129,7 +135,7 @@ def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str, p
         # Connect to Gmail SMTP server
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
-        server.login(email_user, email_pass)
+        server.login(login_email, email_pass)
         
         # Send email
         server.send_message(msg)
