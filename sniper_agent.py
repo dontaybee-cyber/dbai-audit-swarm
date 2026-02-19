@@ -17,7 +17,7 @@ load_dotenv()
 
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
-SENDER_NAME = os.getenv("SENDER_NAME", "Dontay Beemon")
+SENDER_NAME = os.getenv("SENDER_NAME", "The DBAI Team")
 DBAI_LANDING_PAGE = "https://digitaldontaybeemon.dashnexpages.net/ai-automation-consultant-custom-ai-systems-workflow-audits/"
 DBAI_PHONE = "(720) 316-8360"
 HUNTER_API_KEY = os.getenv("HUNTER_API_KEY")
@@ -26,7 +26,6 @@ HUNTER_API_KEY = os.getenv("HUNTER_API_KEY")
 ===========================================
 HOW TO GENERATE A GMAIL APP PASSWORD:
 ===========================================
-
 1. Go to your Google Account: https://myaccount.google.com/
 2. Enable 2-Factor Authentication (if not already enabled)
 3. Navigate to: Security > App passwords
@@ -34,14 +33,51 @@ HOW TO GENERATE A GMAIL APP PASSWORD:
 5. Google will generate a 16-character password
 6. Copy this password and add it to your .env file as EMAIL_PASS
 7. Use your full Gmail address (you@gmail.com) as EMAIL_USER
-
 NOTE: Regular Gmail passwords DO NOT work with this script.
       You MUST use an App Password for security.
       Gmail no longer allows "Less secure app access".
-
 ===========================================
 """
 
+def generate_dynamic_email(url: str, pain_point_summary: str) -> str:
+    """Generates a unique email body using Spintax."""
+    greetings = ["Hi there,", "Hello,", "Hey,", "Greetings,"]
+    openers = [
+        "I was just taking a look at your site",
+        "I came across your website",
+        "I was reviewing your online presence",
+        "My team was just looking at your site"
+    ]
+    transitions = [
+        "and I noticed a quick win.",
+        "and wanted to share an observation.",
+        "and spotted a massive area for optimization.",
+        "and wanted to drop a quick note."
+    ]
+    sign_offs = ["Best,", "Cheers,", "Regards,", "Talk soon,"]
+
+    # Select random phrases
+    greeting = random.choice(greetings)
+    opener = random.choice(openers)
+    transition = random.choice(transitions)
+    sign_off = random.choice(sign_offs)
+    
+    # Construct the dynamic email body
+    body = f"""{greeting}
+
+{opener} at {url} {transition}
+
+{pain_point_summary}
+
+I've attached a custom strategic briefing (sample_audit.pdf) showing exactly how Dontay Beemon Automated Innovations (DBAI) can plug this leak.
+
+Let's chat: {DBAI_PHONE}
+Trust link: {DBAI_LANDING_PAGE}
+
+{sign_off}
+{SENDER_NAME}
+"""
+    return body
 
 def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str) -> Tuple[bool, bool]:
     """
@@ -62,23 +98,8 @@ def send_sniper_email(recipient_email: str, url: str, pain_point_summary: str) -
     
     subject = f"A specific idea for {url.replace('https://', '').replace('http://', '').split('/')[0]}"
     
-    # New punchy email body
-    body = f"""Hi,
-
-My firm, Dontay Beemon Automated Innovations (DBAI), specializes in one thing: fixing revenue leaks.
-
-I was reviewing your site and noticed that {pain_point_summary}.
-
-I've attached a strategic briefing (sample_audit.pdf) that outlines how we typically solve this for our clients using AI automation. It's a direct look into the strategies we'd deploy for you.
-
-If you're serious about capturing that lost revenue, my direct line is {DBAI_PHONE}.
-
-Best,
-
-{SENDER_NAME}
-Dontay Beemon Automated Innovations
-{DBAI_LANDING_PAGE}
-"""
+    # Generate the dynamic email body
+    body = generate_dynamic_email(url, pain_point_summary)
     
     pdf_attached = False
     try:
@@ -100,7 +121,6 @@ Dontay Beemon Automated Innovations
                 ui.log_sniper(f"Successfully attached {pdf_path}")
         except FileNotFoundError:
             ui.log_error(f"CRITICAL: The file {pdf_path} was not found. Email will be sent without the attachment.")
-            # Still send the email, but log the failure
             pdf_attached = False
 
         # Connect to Gmail SMTP server
@@ -125,13 +145,8 @@ Dontay Beemon Automated Innovations
         ui.log_error(f"Failed to send email to {recipient_email}: {e}")
         return False, False
 
-
-
 def enrich_email_with_hunter(domain: str) -> Optional[str]:
-    """Try to find a contact email for a domain using Hunter.io Domain Search API.
-
-    Returns the first discovered email address or None on failure/no results.
-    """
+    """Try to find a contact email for a domain using Hunter.io Domain Search API."""
     if not HUNTER_API_KEY:
         return None
     try:
@@ -145,7 +160,6 @@ def enrich_email_with_hunter(domain: str) -> Optional[str]:
         if not emails:
             ui.log_warning(f"Hunter found no emails for {domain}")
             return None
-        # Prefer corporate/verified emails if available
         for e in emails:
             if e.get("value"):
                 ui.log_success(f"Hunter found email: {e.get('value')}")
@@ -154,7 +168,6 @@ def enrich_email_with_hunter(domain: str) -> Optional[str]:
     except Exception as e:
         ui.log_warning(f"Hunter enrichment failed for {domain}: {e}")
         return None
-
 
 def main(client_key: str):
     ui.SwarmHeader.display()
@@ -168,7 +181,6 @@ def main(client_key: str):
     
     audits_df = pd.read_csv(audits_file, on_bad_lines='skip')
     
-    # Updated required columns
     required_columns = ["Status", "URL", "Pain_Point_Summary"]
     if not all(col in audits_df.columns for col in required_columns):
         ui.log_error(f"{audits_file} must contain these columns: {', '.join(required_columns)}")
@@ -179,7 +191,6 @@ def main(client_key: str):
         ui.log_info("To send sniper emails, you need contact emails for each lead.")
         return
     
-    # Initialize 'Audit Attached' column if it doesn't exist
     if "Audit Attached" not in audits_df.columns:
         audits_df["Audit Attached"] = False
         
@@ -203,7 +214,6 @@ def main(client_key: str):
     sent_count = 0
     audits_generated = 0
     
-    # Updated progress bar description
     for idx, row in ui.track(pending_audits.iterrows(), total=len(pending_audits), description="[sniper]Generating Audits & Sending Emails...[/sniper]"):
         try:
             url = row.get("URL")
@@ -220,7 +230,7 @@ def main(client_key: str):
                 if HUNTER_API_KEY:
                     ui.log_sniper(f"Attempting Hunter enrichment for {domain}")
                     found = enrich_email_with_hunter(domain)
-                    time.sleep(1) # Respect Hunter API rate limits
+                    time.sleep(1)
                     if found:
                         recipient_email = found
                         audits_df.at[idx, "Email"] = found
@@ -239,7 +249,10 @@ def main(client_key: str):
                 audits_df.at[idx, "Status"] = "Skipped - Previously Sent"
                 continue
 
+            # This is where the original instructions said to change, but it's cleaner in send_sniper_email
+            # No change needed here, the call to send_sniper_email will handle the dynamic body
             sent, attached = send_sniper_email(recipient_email, url, pain_point_summary)
+            
             if sent:
                 audits_df.at[idx, "Status"] = "Sent"
                 audits_df.at[idx, "Sent Date"] = datetime.now().strftime("%Y-%m-%d")
@@ -249,7 +262,6 @@ def main(client_key: str):
                     audits_generated += 1
                 emailed_this_session.add(current_email_lower)
                 
-                # Randomized delay to mimic human behavior
                 time.sleep(random.randint(30, 60))
             else:
                 ui.log_warning(f"Failed to send email for {url}")
@@ -259,7 +271,6 @@ def main(client_key: str):
             ui.log_error(f"Unexpected error processing row {idx}: {e}")
             audits_df.at[idx, "Status"] = "Error"
     
-    # Save changes regardless of whether emails were sent, to update statuses
     audits_df.to_csv(audits_file, index=False)
     
     if sent_count > 0:
