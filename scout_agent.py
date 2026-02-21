@@ -2,6 +2,7 @@ import os
 import argparse
 import pandas as pd
 import time
+import random
 import requests
 from urllib.parse import urlparse
 from dotenv import load_dotenv
@@ -104,8 +105,16 @@ def scout_leads(niche, location, client_key, num_results=25):
     if master_domain_set:
         ui.log_info(f"Loaded {len(master_domain_set)} known domains to skip for client '{client_key}'.")
 
-    q = f'{niche} in {location} -yelp -angi -bbb -thumbtack'
-    ui.log_scout(f"Starting search for: [bold white]{q}[/bold white]")
+    modifiers = ["", "contractors", "company", "services", "experts", "specialists", "near me", "agency", "professionals"]
+    selected_modifier = random.choice(modifiers)
+
+    # Construct the dynamic query
+    if selected_modifier:
+        q = f'{niche} {selected_modifier} in {location} -yelp -angi -bbb -thumbtack'
+    else:
+        q = f'{niche} in {location} -yelp -angi -bbb -thumbtack'
+
+    ui.log_scout(f"Starting semantic search for: [bold white]{q}[/bold white]")
 
     api_key = os.getenv("SERP_API_KEY")
     if not api_key:
@@ -146,7 +155,8 @@ def scout_leads(niche, location, client_key, num_results=25):
             if "error" in results:
                 ui.log_error(f"SerpAPI Error: {results['error']}")
                 # Always trigger Apollo if Google fails
-                apollo_urls = apollo_fallback_search(niche, location, 100, master_domain_set, blacklist)
+                search_term = f"{niche} {selected_modifier}".strip()
+                apollo_urls = apollo_fallback_search(search_term, location, 100, master_domain_set, blacklist)
                 fresh_leads.extend([{"URL": url, "Status": "Unscanned"} for url in apollo_urls])
                 ui.log_success(f"Apollo Fallback recovered {len(apollo_urls)} leads.")
                 break
