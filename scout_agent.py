@@ -119,11 +119,10 @@ def scout_leads(niche, location, client_key, num_results=25):
 
     ui.log_scout("🛰️ SCOUT: Using SerpAPI for deep-search...")
 
-    TARGET_NEW_LEADS = 40
     fresh_leads = []
     search_offset = 0
     
-    while len(fresh_leads) < TARGET_NEW_LEADS:
+    while True:
         if search_offset >= 300:
             ui.log_warning(f"Safety breakout: Checked 30 pages. Proceeding with {len(fresh_leads)} found leads.")
             break
@@ -146,19 +145,10 @@ def scout_leads(niche, location, client_key, num_results=25):
             # Task 1: API Error & KeyError Shielding (+ Apollo failover)
             if "error" in results:
                 ui.log_error(f"SerpAPI Error: {results['error']}")
-
-                leads_needed = TARGET_NEW_LEADS - len(fresh_leads)
-                if leads_needed > 0:
-                    apollo_urls = apollo_fallback_search(
-                        niche,
-                        location,
-                        leads_needed,
-                        master_domain_set,
-                        blacklist,
-                    )
-                    fresh_leads.extend([{"URL": url, "Status": "Unscanned"} for url in apollo_urls])
-                    ui.log_success(f"Apollo Fallback recovered {len(apollo_urls)} leads.")
-
+                # Always trigger Apollo if Google fails
+                apollo_urls = apollo_fallback_search(niche, location, 100, master_domain_set, blacklist)
+                fresh_leads.extend([{"URL": url, "Status": "Unscanned"} for url in apollo_urls])
+                ui.log_success(f"Apollo Fallback recovered {len(apollo_urls)} leads.")
                 break
 
             # Task 2: Fix the Aggressive Pagination Break
@@ -180,10 +170,7 @@ def scout_leads(niche, location, client_key, num_results=25):
                             ui.log_success(f"Premium Lead Found (Maps): {website}")
                             fresh_leads.append({"URL": website, "Status": "Unscanned"})
                             master_domain_set.add(host)
-                            if len(fresh_leads) >= TARGET_NEW_LEADS: break
             
-            if len(fresh_leads) >= TARGET_NEW_LEADS: break
-
             if organic_results:
                 for result in organic_results:
                     link = result.get("link")
@@ -193,8 +180,6 @@ def scout_leads(niche, location, client_key, num_results=25):
                             ui.log_success(f"Lead Found (Organic): {link}")
                             fresh_leads.append({"URL": link, "Status": "Unscanned"})
                             master_domain_set.add(host)
-                            if len(fresh_leads) >= TARGET_NEW_LEADS:
-                                break
             
             search_offset += 10
             time.sleep(1)
