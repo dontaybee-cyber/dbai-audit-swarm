@@ -6,6 +6,7 @@ import random
 import requests
 from urllib.parse import urlparse
 from dotenv import load_dotenv
+import streamlit as st
 import ui_manager as ui
 
 load_dotenv(override=True)
@@ -38,7 +39,10 @@ def get_known_domains(client_key: str) -> set:
     return known_domains
 
 def apollo_fallback_search(niche, location, required_lead_count, master_domain_set, blacklist):
-    apollo_key = os.getenv("APOLLO_API_KEY")
+    try:
+        apollo_key = st.secrets.get("APOLLO_API_KEY", os.getenv("APOLLO_API_KEY"))
+    except Exception:
+        apollo_key = os.getenv("APOLLO_API_KEY")
 
     if not apollo_key:
         ui.log_warning("No Apollo API key found. Fallback aborted.")
@@ -116,7 +120,10 @@ def scout_leads(niche, location, client_key, num_results=25):
 
     ui.log_scout(f"Starting semantic search for: [bold white]{q}[/bold white]")
 
-    api_key = os.getenv("SERP_API_KEY")
+    try:
+        api_key = st.secrets.get("SERP_API_KEY", os.getenv("SERP_API_KEY"))
+    except Exception:
+        api_key = os.getenv("SERP_API_KEY")
     if not api_key:
         ui.log_error("SERP_API_KEY is not configured. Please set it in your environment.")
         return
@@ -163,6 +170,13 @@ def scout_leads(niche, location, client_key, num_results=25):
 
             # Task 2: Fix the Aggressive Pagination Break
             local_results = results.get("local_results", [])
+
+            # Standardize local_results to always be a list to prevent 'str object has no attribute get' errors
+            if isinstance(local_results, dict):
+                local_results = local_results.get("places", [])
+            elif not isinstance(local_results, list):
+                local_results = []
+            
             organic_results = results.get("organic_results", [])
 
             if not local_results and not organic_results:
