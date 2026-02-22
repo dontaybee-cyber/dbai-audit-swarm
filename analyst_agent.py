@@ -3,8 +3,7 @@ import random
 import re
 import time
 from typing import Optional, Tuple, Dict
-from urllib.parse import urljoin, urlparse
-
+from urllib.parse import urlparse, urljoin
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -15,18 +14,19 @@ from serpapi import GoogleSearch
 import streamlit as st
 import cloud_storage
 
-load_dotenv()
-
-API_KEY = os.getenv("GEMINI_API_KEY")
-try:
-    HUNTER_API_KEY = st.secrets.get("HUNTER_API_KEY", os.getenv("HUNTER_API_KEY"))
-except Exception:
-    HUNTER_API_KEY = os.getenv("HUNTER_API_KEY")
-
 try:
     from duckduckgo_search import DDGS
 except ImportError:
     DDGS = None
+
+load_dotenv()
+
+API_KEY = os.getenv("GEMINI_API_KEY")
+
+try:
+    HUNTER_API_KEY = st.secrets.get("HUNTER_API_KEY", os.getenv("HUNTER_API_KEY"))
+except Exception:
+    HUNTER_API_KEY = os.getenv("HUNTER_API_KEY")
 
 try:
     import google.genai as genai
@@ -34,7 +34,6 @@ try:
     try:
         genai.configure(api_key=API_KEY)
     except Exception:
-        # some installs expose a different configure API; ignore here and rely on calls
         pass
 except Exception:
     genai_available = False
@@ -142,7 +141,6 @@ def extract_email_from_text(text: str) -> Optional[str]:
     email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     matches = re.findall(email_pattern, text)
     
-    # Massive blocklist for junk, placeholders, and web builders
     ignore_terms = [
         'sentry', 'no-reply', 'noreply', 'example', 'domain', 'email', 'username', 
         'user', 'test', 'wix', 'squarespace', 'wordpress', 'name@', 'yourname', 
@@ -154,7 +152,7 @@ def extract_email_from_text(text: str) -> Optional[str]:
     if matches:
         for email in matches:
             lower_email = email.lower().strip()
-            lower_email = lower_email.rstrip('.') # Clean trailing dots
+            lower_email = lower_email.rstrip('.')
             
             if any(term in lower_email for term in ignore_terms):
                 continue
@@ -169,17 +167,14 @@ def extract_email_from_text(text: str) -> Optional[str]:
     if not valid_emails:
         return None
     
-    # Prioritize core business inboxes over obscure developer/employee emails
     priorities = ['info@', 'contact@', 'sales@', 'hello@', 'office@', 'admin@', 'support@', 'estimate@']
     for e in valid_emails:
         if any(e.startswith(p) for p in priorities):
             return e
             
-    # Fallback to the first valid email found
     return valid_emails[0]
 
 def hunt_email_via_google(domain: str) -> Optional[str]:
-    """Uses SerpAPI to search Google for the company's contact info."""
     api_key = st.secrets.get("SERP_API_KEY", os.getenv("SERP_API_KEY"))
     if not api_key: return None
     try:
@@ -197,7 +192,6 @@ def hunt_email_via_ddg(domain: str) -> Optional[str]:
     try:
         ddgs = DDGS()
         q = f'"{domain}" contact OR email OR @'
-        # Natively scrape the text of the search results
         results = list(ddgs.text(q, max_results=10))
         snippets = " ".join([res.get("body", "") for res in results])
         return extract_email_from_text(snippets)
@@ -205,27 +199,19 @@ def hunt_email_via_ddg(domain: str) -> Optional[str]:
         return None
 
 def enrich_email_with_hunter(domain: str) -> Optional[str]:
-    """Try to find a contact email for a domain using Hunter.io Domain Search API."""
-    if not HUNTER_API_KEY:
-        return None
+    """Try to find a contact email using Hunter.io."""
+    if not HUNTER_API_KEY: return None
     try:
-        ui.log_analyst(f"Querying Hunter.io for domain: {domain}")
+        ui.log_sniper(f"Querying Hunter.io for domain: {domain}")
         url = "https://api.hunter.io/v2/domain-search"
-        params = {"domain": domain, "api_key": HUNTER_API_KEY}
+        params = = {"domain": domain, "api_key": HUNTER_API_KEY}
         resp = requests.get(url, params=params, timeout=10)
         resp.raise_for_status()
-        data = resp.json()
-        emails = data.get("data", {}).get("emails", [])
-        if not emails:
-            ui.log_warning(f"Hunter found no emails for {domain}")
-            return None
+        emails = resp.json().get("data", {}).get("emails", [])
         for e in emails:
-            if e.get("value"):
-                ui.log_success(f"Hunter found email: {e.get('value')}")
-                return e.get("value")
+            if e.get("value"): return e.get("value")
         return None
-    except Exception as e:
-        ui.log_warning(f"Hunter enrichment failed for {domain}: {e}")
+    except Exception:
         return None
 
 def main(client_key: str):
@@ -254,7 +240,18 @@ def main(client_key: str):
     profile = swarm_config.CLIENT_PROFILES.get(client_key, swarm_config.CLIENT_PROFILES["default"])
     ui.log_analyst(f"Activating Chameleon Agent Profile: {profile['company_name']}")
 
-    for idx, row in ui.track(leads_df.iterrows(), total=len(leads_df), description="[analyst]Analyzing Sites...[/analyst]"):
+    unscanned_mask = leads_df["Status"].astype(str).str.strip().str.lower() == "unscanned"
+    unscanned_df = leads_df[unscanned_mask]
+
+    MAX_BATCH = 40
+    batch_df = unscanned_df.head(MAX_BATCH)
+
+    if batch_df.empty:
+        ui.log_success("No unscanned leads found. Run the Scout to gather more!")
+        return
+
+    ui.log_analyst(f"Batch Governor Active: Processing {len(batch_df)} leads this run...")
+    for idx, row in ui.track(batch_df.iterrows(), total=len(batch_df), description="[analyst]Analyzing Sites...[/analyst]"):
         try:
             if str(row.get("Status", "")).strip().lower() != "unscanned":
                 continue
@@ -289,40 +286,42 @@ def main(client_key: str):
                     ui.log_analyst("No pain point from Gemini, falling back to heuristics.")
                     pain = heuristic_analysis(combined_dna)
                 
+                # Force Root Domain extraction to prevent 404s
+                parsed_url = urlparse(url)
+                root_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
                 extracted_email = extract_email_from_text(combined_dna)
                 if extracted_email:
-                    ui.log_success(f"Extracted email: {extracted_email}")
+                    ui.log_success(f"Extracted email from homepage: {extracted_email}")
                 else:
-                    parsed_url = urlparse(url)
-                    root_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                    # Level 2: Deep Search on Root Domain
                     sub_paths = ["/contact", "/contact-us", "/about", "/about-us", "/support", "/team", "/privacy"]
                     for path in sub_paths:
                         sub_url = f"{root_domain}{path}"
-                        ui.log_analyst(f"Deep Search: Checking {sub_url} for email...")
+                        ui.log_analyst(f"Deep Search: Checking {sub_url}...")
                         sub_text, _ = fetch_site_text(sub_url, timeout=10, retries=0)
                         if sub_text:
                             extracted_email = extract_email_from_text(sub_text)
                             if extracted_email:
                                 ui.log_success(f"Deep Search found email: {extracted_email}")
                                 break
-                if not extracted_email:
-                    base_domain = urlparse(url).netloc # For SerpAPI, just the domain is fine
+
                     # Level 3: SerpAPI Google Hunt
                     if not extracted_email:
-                        ui.log_analyst(f"Deploying SerpAPI to hunt Google for {base_domain} email...")
-                        extracted_email = hunt_email_via_google(base_domain)
-                        if extracted_email: ui.log_success("SerpAPI found email via Google.")
+                        ui.log_analyst(f"Deploying SerpAPI for {root_domain}...")
+                        extracted_email = hunt_email_via_google(parsed_url.netloc)
+                        if extracted_email: ui.log_success("SerpAPI found email.")
 
-                    # Level 4: DuckDuckGo Native Hunt (Zero-API Failsafe)
+                    # Level 4: DuckDuckGo Native Hunt
                     if not extracted_email:
-                        ui.log_analyst(f"Deploying DuckDuckGo native search for {base_domain}...")
-                        extracted_email = hunt_email_via_ddg(base_domain)
-                        if extracted_email: ui.log_success("DDG Failsafe found email.")
+                        ui.log_analyst(f"Deploying DDG native search for {root_domain}...")
+                        extracted_email = hunt_email_via_ddg(parsed_url.netloc)
+                        if extracted_email: ui.log_success("DDG found email.")
 
                     # Level 5: Hunter.io Database Hunt
                     if not extracted_email and HUNTER_API_KEY:
-                        ui.log_analyst(f"Querying Hunter.io database for {base_domain}...")
-                        extracted_email = enrich_email_with_hunter(base_domain)
+                        ui.log_analyst(f"Querying Hunter.io database for {root_domain}...")
+                        extracted_email = enrich_email_with_hunter(parsed_url.netloc)
                         if extracted_email: ui.log_success("Hunter.io found email.")
             
             status = "Dead End"
@@ -354,7 +353,6 @@ def main(client_key: str):
         if os.path.exists(audits_file):
             try:
                 existing_df = pd.read_csv(audits_file)
-                # Safe merge that preserves all Sniper columns
                 combined_df = pd.concat([existing_df, out_df], ignore_index=True)
                 combined_df.to_csv(audits_file, index=False)
             except Exception as e:
