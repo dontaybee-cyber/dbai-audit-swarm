@@ -127,21 +127,44 @@ def heuristic_analysis(site_dna: str) -> str:
     return "Your website lacks a clear, instant lead-capture mechanism, potentially losing you an estimated $18,000 annually from missed opportunities."
 
 def extract_email_from_text(text: str) -> Optional[str]:
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     matches = re.findall(email_pattern, text)
     
-    ignore_terms = ['sentry', 'no-reply', 'noreply', 'example', 'domain', 'email', 'username', 'user', 'test']
-    ignore_exts = ('.png', '.jpg', '.jpeg', '.gif', '.css', '.js', '.svg', '.woff', '.woff2', '.ttf', '.webp')
-
+    # Massive blocklist for junk, placeholders, and web builders
+    ignore_terms = [
+        'sentry', 'no-reply', 'noreply', 'example', 'domain', 'email', 'username', 
+        'user', 'test', 'wix', 'squarespace', 'wordpress', 'name@', 'yourname', 
+        'yourdomain', 'admin@example', 'john@doe', 'jane@doe', 'sitelink', 
+        'theme', 'demo', 'placeholder', '12345'
+    ]
+    ignore_exts = ('.png', '.jpg', '.jpeg', '.gif', '.css', '.js', '.svg', '.woff', '.woff2', '.ttf', '.webp', '.mp4', '.mp3')
+    valid_emails = []
     if matches:
         for email in matches:
-            lower_email = email.lower()
+            lower_email = email.lower().strip()
+            lower_email = lower_email.rstrip('.') # Clean trailing dots
+            
             if any(term in lower_email for term in ignore_terms):
                 continue
             if lower_email.endswith(ignore_exts):
                 continue
-            return email
-    return None
+            if len(lower_email) < 6 or len(lower_email) > 80:
+                continue
+            
+            if lower_email not in valid_emails:
+                valid_emails.append(lower_email)
+        
+    if not valid_emails:
+        return None
+    
+    # Prioritize core business inboxes over obscure developer/employee emails
+    priorities = ['info@', 'contact@', 'sales@', 'hello@', 'office@', 'admin@', 'support@', 'estimate@']
+    for e in valid_emails:
+        if any(e.startswith(p) for p in priorities):
+            return e
+            
+    # Fallback to the first valid email found
+    return valid_emails[0]
 
 def main(client_key: str):
     ui.SwarmHeader.display()
@@ -204,7 +227,7 @@ def main(client_key: str):
                     ui.log_success(f"Extracted email: {extracted_email}")
                 else:
                     base_domain = url.rstrip("/")
-                    sub_paths = ["/contact", "/about", "/contact-us", "/about-us", "/privacy"]
+                    sub_paths = ["/contact", "/contact-us", "/about", "/about-us", "/support", "/team", "/privacy"]
                     for path in sub_paths:
                         sub_url = base_domain + path
                         ui.log_analyst(f"Deep Search: Checking {sub_url} for email...")
