@@ -112,9 +112,9 @@ def ddg_native_failsafe(niche, location, master_domain_set, blacklist):
     failsafe_leads = []
 
     try:
-        with DDGS() as ddgs:
-            # Natively scrape up to 100 results directly through Python
-            results = list(ddgs.text(q, max_results=100))
+        ddgs = DDGS()
+        # Natively scrape up to 100 results directly through Python
+        results = list(ddgs.text(q, max_results=100))
 
         for res in results:
             link = res.get("href", "")
@@ -201,8 +201,12 @@ def scout_leads(niche, location, client_key, num_results=25):
         ui.log_scout(f"Searching page {search_offset // 10 + 1}...")
 
         try:
-            search = GoogleSearch(params)
-            results = search.get_dict()
+            try:
+                search = GoogleSearch(params)
+                results = search.get_dict()
+            except Exception as api_e:
+                ui.log_error(f"SerpAPI Hard Crash: {api_e}")
+                results = {"error": str(api_e)}
 
             # Task 1: API Error & KeyError Shielding (+ Apollo failover)
             if "error" in results:
