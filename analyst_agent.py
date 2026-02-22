@@ -3,7 +3,7 @@ import random
 import re
 import time
 from typing import Optional, Tuple, Dict
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import pandas as pd
 import requests
@@ -220,11 +220,13 @@ def main(client_key: str):
             if site_dna:
                 combined_dna = f"--- HOMEPAGE ---\n{site_dna}\n"
                 
-                base_domain = url.rstrip("/")
+                parsed_url = urlparse(url)
+                root_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
                 context_paths = ["/services", "/about", "/about-us", "/faq"]
                 for path in context_paths:
-                    ui.log_analyst(f"Deep Context: Scraping {base_domain + path}...")
-                    sub_text, _ = fetch_site_text(base_domain + path, timeout=8, retries=0)
+                    target_url = f"{root_domain}{path}"
+                    ui.log_analyst(f"Deep Context: Scraping {target_url}...")
+                    sub_text, _ = fetch_site_text(target_url, timeout=8, retries=0)
                     if sub_text:
                         combined_dna += f"--- {path.upper()} ---\n{sub_text}\n"
                 
@@ -245,10 +247,11 @@ def main(client_key: str):
                 if extracted_email:
                     ui.log_success(f"Extracted email: {extracted_email}")
                 else:
-                    base_domain = url.rstrip("/")
+                    parsed_url = urlparse(url)
+                    root_domain = f"{parsed_url.scheme}://{parsed_url.netloc}"
                     sub_paths = ["/contact", "/contact-us", "/about", "/about-us", "/support", "/team", "/privacy"]
                     for path in sub_paths:
-                        sub_url = base_domain + path
+                        sub_url = f"{root_domain}{path}"
                         ui.log_analyst(f"Deep Search: Checking {sub_url} for email...")
                         sub_text, _ = fetch_site_text(sub_url, timeout=10, retries=0)
                         if sub_text:
@@ -257,6 +260,7 @@ def main(client_key: str):
                                 ui.log_success(f"Deep Search found email: {extracted_email}")
                                 break
                 if not extracted_email:
+                    base_domain = urlparse(url).netloc # For SerpAPI, just the domain is fine
                     ui.log_analyst(f"Deploying SerpAPI to hunt Google for {base_domain} email...")
                     extracted_email = hunt_email_via_google(base_domain)
                     if extracted_email:
